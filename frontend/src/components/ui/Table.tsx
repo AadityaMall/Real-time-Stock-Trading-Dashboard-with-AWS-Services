@@ -7,7 +7,7 @@ interface TableProps {
 
 export function Table({ children, className = '' }: TableProps) {
   return (
-    <div className={`overflow-x-auto ${className}`}>
+    <div className={`overflow-x-auto rounded-xl ${className}`}>
       <table className="w-full border-collapse">
         {children}
       </table>
@@ -22,7 +22,7 @@ interface TableHeaderProps {
 
 export function TableHeader({ children, className = '' }: TableHeaderProps) {
   return (
-    <thead className={className}>
+    <thead className={`bg-teal-950/30 ${className}`}>
       {children}
     </thead>
   );
@@ -38,8 +38,8 @@ export function TableRow({ children, className = '', hover = true }: TableRowPro
   return (
     <tr
       className={`
-        border-b border-gray-800
-        ${hover ? 'transition-colors hover:bg-gray-800/50' : ''}
+        border-b border-teal-900/20
+        ${hover ? 'transition-colors hover:bg-teal-950/20' : ''}
         ${className}
       `}
     >
@@ -57,7 +57,7 @@ export function TableHead({ children, className = '' }: TableHeadProps) {
   return (
     <th
       className={`
-        px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400
+        px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-teal-400/80
         ${className}
       `}
     >
@@ -73,7 +73,7 @@ interface TableBodyProps {
 
 export function TableBody({ children, className = '' }: TableBodyProps) {
   return (
-    <tbody className={className}>
+    <tbody className={`divide-y divide-teal-900/20 ${className}`}>
       {children}
     </tbody>
   );
@@ -86,7 +86,7 @@ interface TableCellProps {
 
 export function TableCell({ children, className = '' }: TableCellProps) {
   return (
-    <td className={`px-4 py-3 text-sm text-gray-300 ${className}`}>
+    <td className={`px-4 py-4 text-sm text-slate-300 ${className}`}>
       {children}
     </td>
   );

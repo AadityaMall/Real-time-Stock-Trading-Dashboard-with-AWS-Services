@@ -4,14 +4,17 @@ interface CardProps {
   children: React.ReactNode;
   className?: string;
   hover?: boolean;
+  glow?: boolean;
 }
 
-export function Card({ children, className = '', hover = false }: CardProps) {
+export function Card({ children, className = '', hover = false, glow = false }: CardProps) {
   return (
     <div
       className={`
-        rounded-xl border border-gray-800/50 bg-gray-900/40 backdrop-blur-sm p-4 sm:p-6
-        ${hover ? 'transition-all duration-300 hover:border-gray-700 hover:bg-gray-900/60 hover:shadow-lg hover:shadow-black/20' : ''}
+        relative rounded-2xl border border-teal-900/30 bg-[#0d1414]/80 backdrop-blur-sm p-5 sm:p-6
+        bg-gradient-to-br from-teal-950/20 via-transparent to-transparent
+        ${hover ? 'transition-all duration-300 hover:border-teal-700/40 hover:bg-[#0d1414] card-glow cursor-pointer' : ''}
+        ${glow ? 'glow-teal' : ''}
         ${className}
       `}
     >
@@ -40,7 +43,7 @@ interface CardTitleProps {
 
 export function CardTitle({ children, className = '' }: CardTitleProps) {
   return (
-    <h3 className={`text-lg font-semibold text-white ${className}`}>
+    <h3 className={`text-lg font-semibold text-slate-100 ${className}`}>
       {children}
     </h3>
   );

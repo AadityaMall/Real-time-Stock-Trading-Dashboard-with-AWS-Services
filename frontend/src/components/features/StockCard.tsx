@@ -17,7 +17,7 @@ export function StockCard({ stock, showDetails = false }: StockCardProps) {
   const changeIcon = isPositive ? '↑' : '↓';
 
   return (
-    <Link href={`/stock/${stock.symbol}`} className="block h-full">
+    <Link href={`/stock/${stock.symbol}`} className="block h-full p-5">
       <Card hover className="h-full transition-transform duration-300 hover:scale-[1.02]">
         <div className="flex flex-col h-full">
           <div className="flex-1">
