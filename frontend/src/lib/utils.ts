@@ -1,4 +1,9 @@
-// Utility functions
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
 
 export function formatCurrency(value: number, decimals: number = 2): string {
   return new Intl.NumberFormat('en-IN', {
@@ -39,20 +44,4 @@ export function formatLargeNumber(value: number): string {
 export function formatPercent(value: number, decimals: number = 2): string {
   const sign = value >= 0 ? '+' : '';
   return `${sign}${value.toFixed(decimals)}%`;
-}
-
-export function cn(...classes: (string | undefined | null | false)[]): string {
-  return classes.filter(Boolean).join(' ');
-}
-
-export function getChangeColor(change: number): string {
-  if (change > 0) return 'text-green-400';
-  if (change < 0) return 'text-red-400';
-  return 'text-gray-400';
-}
-
-export function getChangeBgColor(change: number): string {
-  if (change > 0) return 'bg-green-900/30 border-green-800';
-  if (change < 0) return 'bg-red-900/30 border-red-800';
-  return 'bg-gray-800 border-gray-700';
 }

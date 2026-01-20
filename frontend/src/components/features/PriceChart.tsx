@@ -1,8 +1,8 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatRupee } from '@/lib/utils';
-import type { PriceHistory } from '@/types';
+import type { PriceHistory } from '@/lib/types';
 
 interface PriceChartProps {
   data: PriceHistory;

@@ -1,33 +1,21 @@
-import React from 'react';
+import * as React from "react"
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
-  error?: string;
-}
+import { cn } from "@/lib/utils"
 
-export function Input({ label, error, className = '', ...props }: InputProps) {
+function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
-    <div className="w-full">
-      {label && (
-        <label className="mb-2 block text-sm font-medium text-slate-300">
-          {label}
-        </label>
+    <input
+      type={type}
+      data-slot="input"
+      className={cn(
+        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+        className
       )}
-      <input
-        className={`
-          w-full rounded-xl border bg-[#0a0f0f] px-4 py-3
-          text-slate-100 placeholder-slate-500
-          focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20
-          transition-all duration-200
-          ${error ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500/20' : 'border-teal-900/40 hover:border-teal-800/60'}
-          ${props.disabled ? 'bg-slate-900/50 text-slate-400 cursor-not-allowed' : ''}
-          ${className}
-        `}
-        {...props}
-      />
-      {error && (
-        <p className="mt-2 text-sm text-red-400">{error}</p>
-      )}
-    </div>
-  );
+      {...props}
+    />
+  )
 }
+
+export { Input }

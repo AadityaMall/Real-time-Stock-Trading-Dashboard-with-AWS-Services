@@ -1,14 +1,9 @@
-// Core TypeScript types for the Stock Trading Dashboard
-
-// User & Authentication
 export interface User {
-  id: string;
-  email: string;
-  name: string;
-  createdAt: string;
-  avatar?: string;
+	id: string;
+	name: string;
+	email: string;
+	mobileNumber: string;
 }
-
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;

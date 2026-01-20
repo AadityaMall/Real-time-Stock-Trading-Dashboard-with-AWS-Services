@@ -1,16 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { NavbarDemo } from "@/components/layout/Navbar";
+import { AuthProvider } from "@/context/AuthContext";
 import "./globals.css";
-import { Navbar } from "@/components/layout/Navbar";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
 
 export const metadata: Metadata = {
-  title: "TradeHub - Real-time Stock Trading Dashboard",
-  description: "Professional stock analytics and virtual investing platform",
+  title: "TradeHub - Real-time Stock Trading",
+  description: "Real-time stock trading dashboard",
 };
 
 export default function RootLayout({
@@ -19,12 +14,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="light">
-      <body
-        className={`${inter.variable} antialiased font-sans`}
-      >
-        <Navbar />
-        {children}
+    <html lang="en">
+      <body className="bg-linear-to-br from-gray-950 via-gray-900 to-gray-950">
+        <AuthProvider>
+          <NavbarDemo />
+          <div className="pt-30">
+            {children}
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );

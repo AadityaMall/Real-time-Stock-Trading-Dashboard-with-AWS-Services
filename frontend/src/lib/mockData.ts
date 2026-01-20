@@ -9,7 +9,7 @@ import type {
   Holding,
   PriceHistory,
   PricePoint,
-} from '@/types';
+} from '@/lib/types';
 
 // Sample stocks
 const STOCKS: Stock[] = [
