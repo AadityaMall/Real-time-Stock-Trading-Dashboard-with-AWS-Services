@@ -1,19 +1,29 @@
-from flask import Blueprint, jsonify
-from services.indian_market_service import PriceService
+from flask import Blueprint, request, jsonify
+from services.indian_market_service import IndianMarketService
 
-price_bp = Blueprint("price", __name__)
+market_bp = Blueprint("market", __name__)
 
-def create_price_routes():
 
-    @price_bp.route("/price/<symbol>", methods=["GET"])
+def create_market_routes():
+
+    @market_bp.route("/price/<symbol>", methods=["GET"])
     def get_price(symbol):
         try:
-            price = PriceService.get_stock_price(symbol)
-            return jsonify({
-                "symbol": symbol.upper(),
-                "price": price
-            })
+            data = IndianMarketService.get_stock(symbol)
+            return jsonify(data), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
-    return price_bp
+    @market_bp.route("/prices", methods=["POST"])
+    def get_multiple_prices():
+        body = request.get_json()
+        symbols = body.get("symbols", [])
+        print(symbols)
+        if not symbols:
+            return jsonify({"error": "Symbols list required"}), 400
+
+        data = IndianMarketService.get_multiple(symbols)
+        return jsonify(data), 200
+
+
+    return market_bp

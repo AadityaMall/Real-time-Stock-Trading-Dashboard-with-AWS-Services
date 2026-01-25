@@ -1,2 +1,7 @@
 flask
 python-dotenv
+pyjwt
+flasgger
+werkzeug
+requests
+yfinance

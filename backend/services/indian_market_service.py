@@ -1,23 +1,41 @@
-import requests
-from conifg import settings
-
-
-class PriceService:
-    BASE_URL = "https://www.alphavantage.co/query"
+import yfinance as yf
+from datetime import datetime
+class IndianMarketService:
 
     @staticmethod
-    def get_stock_price(symbol: str) -> float:
-        params = {
-            "function": "GLOBAL_QUOTE",
-            "symbol": symbol,
-            "apikey": settings.ALPHAVANTAGE_API_KEY
+    def get_stock(symbol: str):
+        ticker = yf.Ticker(f"{symbol}.NS")
+
+        hist = ticker.history(period="1d")
+
+        if hist.empty:
+            raise ValueError("Stock not found")
+
+        last = hist.iloc[-1]
+
+        info = ticker.info
+
+        return {
+            "symbol": symbol.upper(),
+            "price": float(last["Close"]),
+            "open": float(last["Open"]),
+            "high": float(last["High"]),
+            "low": float(last["Low"]),
+            "previous_close": info.get("previousClose"),
+            "volume": int(last["Volume"]),
+            "market_cap": info.get("marketCap"),
+            "currency": info.get("currency", "INR"),
+            "timestamp": datetime.utcnow().isoformat()
         }
 
-        response = requests.get(PriceService.BASE_URL, params=params)
-        data = response.json()
+    @staticmethod
+    def get_multiple(symbols: list):
+        results = []
 
-        if "Global Quote" not in data or not data["Global Quote"]:
-            raise ValueError("Invalid symbol or API limit reached")
+        for symbol in symbols:
+            try:
+                results.append(IndianMarketService.get_stock(symbol))
+            except:
+                continue
 
-        price = float(data["Global Quote"]["05. price"])
-        return price
+        return results
