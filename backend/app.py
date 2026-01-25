@@ -20,8 +20,7 @@ def create_app():
     auth_service = AuthService(user_store)
     portfolio_store = PortfolioStore()
     portfolio_service = PortfolioService(portfolio_store)
-    trading_service = TradingService(portfolio_store)
-    portfolio_service = PortfolioService(portfolio_service)
+    trading_service = TradingService(portfolio_service)
     # Register routes
     auth_routes = create_auth_routes(auth_service)
     app.register_blueprint(auth_routes, url_prefix="/auth")
