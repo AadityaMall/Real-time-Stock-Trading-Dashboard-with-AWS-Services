@@ -5,3 +5,4 @@ flasgger
 werkzeug
 requests
 yfinance
+flask-cors

@@ -1,7 +1,7 @@
 from flasgger import Swagger
 from flask import Flask
+from flask_cors import CORS
 
-# backend/app.py
 from repositories.user_store import UserStore
 from repositories.portfolio_store import PortfolioStore
 from services.auth_service import AuthService
@@ -14,6 +14,7 @@ from routes.portfolio_routes import create_portfolio_routes
 
 def create_app():
     app = Flask(__name__)
+    CORS(app, supports_credentials=True, origins=["http://localhost:3000"])
 
     # Initialize core components
     user_store = UserStore()
@@ -43,4 +44,4 @@ def create_app():
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=4000, debug=True)

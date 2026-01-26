@@ -1,17 +1,52 @@
 export interface User {
-	id: string;
-	name: string;
-	email: string;
-	mobileNumber: string;
+	username: string;
+	balance: number;
 }
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  message: string;
+  user: {
+    username: string;
+    balance: number;
+  };
+}
+
+export interface PortfolioResponse {
+  username: string;
+  cash_balance: number;
+  total_invested: number;
+  current_holdings_value: number;
+  net_worth: number;
+  holdings: Array<{
+    symbol: string;
+    quantity: number;
+    avg_buy_price: number;
+    live_price: number;
+    invested_value: number;
+    current_value: number;
+    pnl: number;
+  }>;
+}
+
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  portfolio: Portfolio | null;
 }
 
 export interface LoginCredentials {
-  email: string;
+  username: string;
   password: string;
 }
 

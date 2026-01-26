@@ -9,12 +9,11 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function AuthPage() {
   const router = useRouter();
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login, register, isAuthenticated, isLoading: authLoading } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -39,19 +38,19 @@ export default function AuthPage() {
     }
 
     if (isSignUp) {
-      // For now, just show that signup is not implemented
-      setError('Sign up is not available yet. Please use login.');
-      setIsLoading(false);
-      return;
-    }
-
-    // Attempt login
-    const success = await login({ email, password });
-    
-    if (success) {
-      router.push('/dashboard');
+      const success = await register({ username, password });
+      if (success) {
+        router.push('/dashboard');
+      } else {
+        setError('Registration failed. Username may already exist.');
+      }
     } else {
-      setError('Invalid email or password. Try: john.doe@example.com / password123');
+      const success = await login({ username, password });
+      if (success) {
+        router.push('/dashboard');
+      } else {
+        setError('Invalid username or password');
+      }
     }
     
     setIsLoading(false);
@@ -59,10 +58,9 @@ export default function AuthPage() {
 
   const toggleMode = () => {
     setIsSignUp(!isSignUp);
-    setEmail('');
+    setUsername('');
     setPassword('');
     setConfirmPassword('');
-    setFullName('');
     setShowPassword(false);
     setShowConfirmPassword(false);
     setError('');
@@ -134,35 +132,16 @@ export default function AuthPage() {
           <Card className="bg-white/[0.03] border-white/10 backdrop-blur-xl shadow-2xl">
             <CardContent className="p-6">
               <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Full Name Field - Only for Sign Up */}
-                {isSignUp && (
-                  <div className="space-y-2">
-                    <label htmlFor="fullName" className="block text-sm font-medium text-gray-300">
-                      Full Name
-                    </label>
-                    <Input
-                      id="fullName"
-                      type="text"
-                      placeholder="John Doe"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-blue-500/50 focus:ring-blue-500/20 h-12"
-                      required
-                    />
-                  </div>
-                )}
-
-                {/* Email Field */}
                 <div className="space-y-2">
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-300">
-                    Email Address
+                  <label htmlFor="username" className="block text-sm font-medium text-gray-300">
+                    Username
                   </label>
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="investor@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="username"
+                    type="text"
+                    placeholder="Enter your username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-blue-500/50 focus:ring-blue-500/20 h-12"
                     required
                   />

@@ -9,7 +9,6 @@ import { Loading } from '@/components/ui/loading';
 import { formatRupee, formatPercent, formatLargeNumber } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import {
-  generateMockPortfolio,
   subscribeToPriceUpdates,
   generatePriceHistory,
 } from '@/lib/mockData';
@@ -53,32 +52,42 @@ function MiniSparkline({ data, isPositive }: { data: number[]; isPositive: boole
 
 // Donut chart component for allocation
 function AllocationChart({ holdings, totalValue }: { holdings: Holding[]; totalValue: number }) {
+  if (!holdings || holdings.length === 0 || totalValue <= 0) {
+    return null;
+  }
+
   const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'];
   
   let currentAngle = 0;
-  const segments = holdings.map((holding, index) => {
-    const percentage = (holding.currentValue / totalValue) * 100;
-    const angle = (percentage / 100) * 360;
-    const startAngle = currentAngle;
-    currentAngle += angle;
-    
-    const startRad = (startAngle - 90) * (Math.PI / 180);
-    const endRad = (currentAngle - 90) * (Math.PI / 180);
-    
-    const x1 = 50 + 40 * Math.cos(startRad);
-    const y1 = 50 + 40 * Math.sin(startRad);
-    const x2 = 50 + 40 * Math.cos(endRad);
-    const y2 = 50 + 40 * Math.sin(endRad);
-    
-    const largeArcFlag = angle > 180 ? 1 : 0;
-    
-    return {
-      path: `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`,
-      color: colors[index % colors.length],
-      symbol: holding.symbol,
-      percentage,
-    };
-  });
+  const segments = holdings
+    .filter((holding) => holding && holding.symbol && holding.currentValue)
+    .map((holding, index) => {
+      const percentage = (holding.currentValue / totalValue) * 100;
+      const angle = (percentage / 100) * 360;
+      const startAngle = currentAngle;
+      currentAngle += angle;
+      
+      const startRad = (startAngle - 90) * (Math.PI / 180);
+      const endRad = (currentAngle - 90) * (Math.PI / 180);
+      
+      const x1 = 50 + 40 * Math.cos(startRad);
+      const y1 = 50 + 40 * Math.sin(startRad);
+      const x2 = 50 + 40 * Math.cos(endRad);
+      const y2 = 50 + 40 * Math.sin(endRad);
+      
+      const largeArcFlag = angle > 180 ? 1 : 0;
+      
+      return {
+        path: `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`,
+        color: colors[index % colors.length],
+        symbol: holding.symbol,
+        percentage,
+      };
+    });
+
+  if (segments.length === 0) {
+    return null;
+  }
 
   return (
     <div className="flex items-center gap-6">
@@ -122,8 +131,7 @@ const mockTransactions = [
 
 export default function PortfolioPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const { isAuthenticated, isLoading: authLoading, portfolio, refreshPortfolio } = useAuth();
   const [priceHistories, setPriceHistories] = useState<Record<string, number[]>>({});
   const [activeTab, setActiveTab] = useState<'overview' | 'holdings' | 'transactions'>('overview');
 
@@ -135,62 +143,46 @@ export default function PortfolioPage() {
   }, [authLoading, isAuthenticated, router]);
 
   useEffect(() => {
-    // Initial load
-    const mockPortfolio = generateMockPortfolio();
-    setPortfolio(mockPortfolio);
+    if (portfolio && portfolio.holdings && portfolio.holdings.length > 0) {
+      const histories: Record<string, number[]> = {};
+      portfolio.holdings.forEach((holding) => {
+        if (holding && holding.symbol) {
+          const history = generatePriceHistory(holding.symbol, '1W');
+          histories[holding.symbol] = history.data.map((p) => p.price);
+        }
+      });
+      setPriceHistories(histories);
 
-    // Generate price histories for sparklines
-    const histories: Record<string, number[]> = {};
-    mockPortfolio.holdings.forEach((holding) => {
-      const history = generatePriceHistory(holding.symbol, '1W');
-      histories[holding.symbol] = history.data.map((p) => p.price);
-    });
-    setPriceHistories(histories);
+      const unsubscribeFunctions = portfolio.holdings
+        .filter((holding) => holding && holding.symbol)
+        .map((holding) =>
+          subscribeToPriceUpdates(holding.symbol, () => {
+            refreshPortfolio();
+          }, 3000)
+        );
 
-    // Subscribe to price updates
-    const unsubscribeFunctions = mockPortfolio.holdings.map((holding) =>
-      subscribeToPriceUpdates(holding.symbol, (price) => {
-        setPortfolio((prev) => {
-          if (!prev) return prev;
-          const updatedHoldings = prev.holdings.map((h) => {
-            if (h.symbol === holding.symbol) {
-              const newCurrentValue = h.quantity * price.price;
-              const newProfitLoss = newCurrentValue - h.totalCost;
-              return {
-                ...h,
-                currentPrice: price.price,
-                currentValue: newCurrentValue,
-                profitLoss: newProfitLoss,
-                profitLossPercent: (newProfitLoss / h.totalCost) * 100,
-              };
-            }
-            return h;
-          });
-          const totalInvested = updatedHoldings.reduce((sum, h) => sum + h.totalCost, 0);
-          const totalHoldingsValue = updatedHoldings.reduce((sum, h) => sum + h.currentValue, 0);
-          const totalProfitLoss = totalHoldingsValue - totalInvested;
-          return {
-            ...prev,
-            holdings: updatedHoldings,
-            totalValue: totalHoldingsValue + prev.cashBalance,
-            totalProfitLoss,
-            totalProfitLossPercent: (totalProfitLoss / totalInvested) * 100,
-          };
-        });
-      }, 3000)
-    );
-
-    return () => {
-      unsubscribeFunctions.forEach((unsub) => unsub());
-    };
-  }, []);
+      return () => {
+        unsubscribeFunctions.forEach((unsub) => unsub());
+      };
+    }
+  }, [portfolio, refreshPortfolio]);
 
   // Calculate performance metrics
   const metrics = useMemo(() => {
-    if (!portfolio) return null;
+    if (!portfolio || !portfolio.holdings || portfolio.holdings.length === 0) {
+      return {
+        bestPerformer: null,
+        worstPerformer: null,
+        totalGains: 0,
+        totalLosses: 0,
+        holdingsCount: 0,
+        investedAmount: portfolio?.totalInvested || 0,
+      };
+    }
     
-    const bestPerformer = [...portfolio.holdings].sort((a, b) => b.profitLossPercent - a.profitLossPercent)[0];
-    const worstPerformer = [...portfolio.holdings].sort((a, b) => a.profitLossPercent - b.profitLossPercent)[0];
+    const sortedByProfit = [...portfolio.holdings].sort((a, b) => b.profitLossPercent - a.profitLossPercent);
+    const bestPerformer = sortedByProfit[0] || null;
+    const worstPerformer = sortedByProfit[sortedByProfit.length - 1] || null;
     const totalGains = portfolio.holdings.filter(h => h.profitLoss > 0).reduce((sum, h) => sum + h.profitLoss, 0);
     const totalLosses = portfolio.holdings.filter(h => h.profitLoss < 0).reduce((sum, h) => sum + Math.abs(h.profitLoss), 0);
     
@@ -314,10 +306,17 @@ export default function PortfolioPage() {
               </div>
               
               {/* Allocation Chart */}
-              <div className="flex flex-col items-center lg:items-end justify-center">
-                <p className="text-xs text-gray-500 mb-3">Asset Allocation</p>
-                <AllocationChart holdings={portfolio.holdings} totalValue={portfolio.totalValue - portfolio.cashBalance} />
-              </div>
+              {portfolio.holdings && portfolio.holdings.length > 0 ? (
+                <div className="flex flex-col items-center lg:items-end justify-center">
+                  <p className="text-xs text-gray-500 mb-3">Asset Allocation</p>
+                  <AllocationChart holdings={portfolio.holdings} totalValue={portfolio.totalValue - portfolio.cashBalance} />
+                </div>
+              ) : (
+                <div className="flex flex-col items-center lg:items-end justify-center">
+                  <p className="text-xs text-gray-500 mb-3">Asset Allocation</p>
+                  <div className="text-gray-500 text-sm">No holdings</div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -336,8 +335,12 @@ export default function PortfolioPage() {
                 <span className="text-xs text-gray-400">Best Performer</span>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-lg font-bold text-white">{metrics.bestPerformer.symbol}</span>
-                <span className="text-emerald-400 font-semibold">{formatPercent(metrics.bestPerformer.profitLossPercent)}</span>
+                <span className="text-lg font-bold text-white">
+                  {metrics.bestPerformer ? metrics.bestPerformer.symbol : 'N/A'}
+                </span>
+                <span className="text-emerald-400 font-semibold">
+                  {metrics.bestPerformer ? formatPercent(metrics.bestPerformer.profitLossPercent) : '0%'}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -354,8 +357,12 @@ export default function PortfolioPage() {
                 <span className="text-xs text-gray-400">Worst Performer</span>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-lg font-bold text-white">{metrics.worstPerformer.symbol}</span>
-                <span className="text-red-400 font-semibold">{formatPercent(metrics.worstPerformer.profitLossPercent)}</span>
+                <span className="text-lg font-bold text-white">
+                  {metrics.worstPerformer ? metrics.worstPerformer.symbol : 'N/A'}
+                </span>
+                <span className="text-red-400 font-semibold">
+                  {metrics.worstPerformer ? formatPercent(metrics.worstPerformer.profitLossPercent) : '0%'}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -447,59 +454,68 @@ export default function PortfolioPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800/30">
-                    {portfolio.holdings.map((holding) => {
-                      const isProfitable = holding.profitLoss >= 0;
-                      return (
-                        <tr 
-                          key={holding.symbol} 
-                          className="hover:bg-white/[0.02] transition-colors group"
-                        >
-                          <td className="py-4 px-4 sm:px-6">
-                            <Link href={`/stocks/${holding.symbol}`} className="flex items-center gap-3">
-                              <div className={`w-1 h-10 rounded-full ${isProfitable ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                              <div>
-                                <div className="font-semibold text-white group-hover:text-blue-400 transition-colors">
-                                  {holding.symbol}
+                    {portfolio.holdings && portfolio.holdings.length > 0 ? (
+                      portfolio.holdings.map((holding) => {
+                        if (!holding || !holding.symbol) return null;
+                        const isProfitable = holding.profitLoss >= 0;
+                        return (
+                          <tr 
+                            key={holding.symbol} 
+                            className="hover:bg-white/[0.02] transition-colors group"
+                          >
+                            <td className="py-4 px-4 sm:px-6">
+                              <Link href={`/stocks/${holding.symbol}`} className="flex items-center gap-3">
+                                <div className={`w-1 h-10 rounded-full ${isProfitable ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                <div>
+                                  <div className="font-semibold text-white group-hover:text-blue-400 transition-colors">
+                                    {holding.symbol}
+                                  </div>
+                                  <div className="text-xs text-gray-500">{holding.stockName || holding.symbol}</div>
                                 </div>
-                                <div className="text-xs text-gray-500">{holding.stockName}</div>
+                              </Link>
+                            </td>
+                            <td className="py-4 px-4 sm:px-6 text-right text-white hidden sm:table-cell">
+                              {holding.quantity || 0}
+                            </td>
+                            <td className="py-4 px-4 sm:px-6 text-right text-gray-400">
+                              {formatRupee(holding.averagePrice || 0)}
+                            </td>
+                            <td className="py-4 px-4 sm:px-6 text-right">
+                              <span className="text-white font-medium">{formatRupee(holding.currentPrice || 0)}</span>
+                            </td>
+                            <td className="py-4 px-4 sm:px-6 hidden lg:table-cell">
+                              <div className="flex justify-center">
+                                {priceHistories[holding.symbol] && (
+                                  <MiniSparkline 
+                                    data={priceHistories[holding.symbol]} 
+                                    isPositive={isProfitable}
+                                  />
+                                )}
                               </div>
-                            </Link>
-                          </td>
-                          <td className="py-4 px-4 sm:px-6 text-right text-white hidden sm:table-cell">
-                            {holding.quantity}
-                          </td>
-                          <td className="py-4 px-4 sm:px-6 text-right text-gray-400">
-                            {formatRupee(holding.averagePrice)}
-                          </td>
-                          <td className="py-4 px-4 sm:px-6 text-right">
-                            <span className="text-white font-medium">{formatRupee(holding.currentPrice)}</span>
-                          </td>
-                          <td className="py-4 px-4 sm:px-6 hidden lg:table-cell">
-                            <div className="flex justify-center">
-                              {priceHistories[holding.symbol] && (
-                                <MiniSparkline 
-                                  data={priceHistories[holding.symbol]} 
-                                  isPositive={isProfitable}
-                                />
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 sm:px-6 text-right">
-                            <div className={`flex flex-col items-end ${isProfitable ? 'text-emerald-400' : 'text-red-400'}`}>
-                              <span className="font-semibold">
-                                {isProfitable ? '+' : ''}{formatRupee(holding.profitLoss)}
-                              </span>
-                              <span className="text-xs">
-                                {formatPercent(holding.profitLossPercent)}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 sm:px-6 text-right hidden md:table-cell">
-                            <span className="text-white font-semibold">{formatRupee(holding.currentValue)}</span>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            </td>
+                            <td className="py-4 px-4 sm:px-6 text-right">
+                              <div className={`flex flex-col items-end ${isProfitable ? 'text-emerald-400' : 'text-red-400'}`}>
+                                <span className="font-semibold">
+                                  {isProfitable ? '+' : ''}{formatRupee(holding.profitLoss || 0)}
+                                </span>
+                                <span className="text-xs">
+                                  {formatPercent(holding.profitLossPercent || 0)}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 sm:px-6 text-right hidden md:table-cell">
+                              <span className="text-white font-semibold">{formatRupee(holding.currentValue || 0)}</span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-gray-500">
+                          No holdings found. Start investing to see your portfolio here.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

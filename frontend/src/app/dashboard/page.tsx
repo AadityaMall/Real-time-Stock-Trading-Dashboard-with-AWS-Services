@@ -13,17 +13,15 @@ import { useAuth } from '@/context/AuthContext';
 import {
   getAllStockQuotes,
   getMarketSummary,
-  generateMockPortfolio,
   subscribeToPriceUpdates,
 } from '@/lib/mockData';
-import type { StockQuote, MarketSummary, Portfolio } from '@/lib/types';
+import type { StockQuote, MarketSummary } from '@/lib/types';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, portfolio } = useAuth();
   const [stocks, setStocks] = useState<StockQuote[]>([]);
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -33,16 +31,12 @@ export default function DashboardPage() {
   }, [authLoading, isAuthenticated, router]);
 
   useEffect(() => {
-    // Initial load
     const initialStocks = getAllStockQuotes();
     const summary = getMarketSummary();
-    const mockPortfolio = generateMockPortfolio();
 
     setStocks(initialStocks);
     setMarketSummary(summary);
-    setPortfolio(mockPortfolio);
 
-    // Subscribe to price updates for all stocks
     const unsubscribeFunctions = initialStocks.map((stock) =>
       subscribeToPriceUpdates(stock.symbol, (price) => {
         setStocks((prev) =>
@@ -55,15 +49,8 @@ export default function DashboardPage() {
       }, 3000)
     );
 
-    // Update portfolio periodically
-    const portfolioInterval = setInterval(() => {
-      const updatedPortfolio = generateMockPortfolio();
-      setPortfolio(updatedPortfolio);
-    }, 5000);
-
     return () => {
       unsubscribeFunctions.forEach((unsub) => unsub());
-      clearInterval(portfolioInterval);
     };
   }, []);
 

@@ -86,9 +86,9 @@ export function NavbarDemo() {
                 className="w-10 h-10 rounded-full bg-blue-400/20 border border-blue-300/30
                            flex items-center justify-center font-bold text-blue-300 
                            shadow-md hover:-translate-y-0.5 hover:bg-blue-400/30 transition cursor-pointer"
-                title={user.name}
+                title={user.username}
               >
-                {user.name[0]}
+                {user.username[0].toUpperCase()}
               </div>
               <button
                 onClick={handleLogout}
@@ -170,9 +170,9 @@ export function NavbarDemo() {
                     className="w-10 h-10 rounded-full bg-blue-400/20 border border-blue-300/30
                          flex items-center justify-center font-bold text-blue-300"
                   >
-                    {user.name[0]}
+                    {user.username[0].toUpperCase()}
                   </div>
-                  <span className="text-sm text-gray-300">{user.name}</span>
+                  <span className="text-sm text-gray-300">{user.username}</span>
                 </div>
                 <button
                   onClick={() => {

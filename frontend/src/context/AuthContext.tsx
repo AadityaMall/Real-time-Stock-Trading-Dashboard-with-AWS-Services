@@ -8,26 +8,15 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
-import { User, AuthState, LoginCredentials } from "@/lib/types";
-
-// Dummy user for development
-const DUMMY_USER: User = {
-  id: "user_001",
-  name: "John Doe",
-  email: "john.doe@example.com",
-  mobileNumber: "+1234567890",
-};
-
-// Dummy credentials for login
-const DUMMY_CREDENTIALS = {
-  email: "john.doe@example.com",
-  password: "password123",
-};
+import { User, AuthState, LoginCredentials, Portfolio } from "@/lib/types";
+import { authService } from "@/services/auth";
 
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<boolean>;
-  logout: () => void;
+  register: (credentials: LoginCredentials) => Promise<boolean>;
+  logout: () => Promise<void>;
   loadUser: () => Promise<void>;
+  refreshPortfolio: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,62 +29,97 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
 
-  // Load user from localStorage on mount
-  const loadUser = useCallback(async () => {
-    setIsLoading(true);
+  const fetchPortfolio = useCallback(async () => {
     try {
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Check localStorage for existing session
-      const storedUser = localStorage.getItem("auth_user");
-      const storedToken = localStorage.getItem("auth_token");
-
-      if (storedUser && storedToken) {
-        const parsedUser = JSON.parse(storedUser) as User;
-        setUser(parsedUser);
-        setIsAuthenticated(true);
-      }
-    } catch (error) {
-      console.error("Failed to load user:", error);
-      // Clear potentially corrupted data
-      localStorage.removeItem("auth_user");
-      localStorage.removeItem("auth_token");
-      setUser(null);
-      setIsAuthenticated(false);
-    } finally {
-      setIsLoading(false);
+      const portfolioData = await authService.getPortfolio();
+      console.log(portfolioData);
+      const transformedPortfolio: Portfolio = {
+        userId: portfolioData.username,
+        totalValue: portfolioData.net_worth,
+        cashBalance: portfolioData.cash_balance,
+        totalInvested: portfolioData.total_invested,
+        totalProfitLoss: portfolioData.net_worth - portfolioData.total_invested - portfolioData.cash_balance,
+        totalProfitLossPercent: portfolioData.total_invested > 0
+          ? ((portfolioData.current_holdings_value - portfolioData.total_invested) / portfolioData.total_invested) * 100
+          : 0,
+        holdings: portfolioData.holdings.map((holding) => ({
+          symbol: holding.symbol,
+          stockName: holding.symbol,
+          quantity: holding.quantity,
+          averagePrice: holding.avg_buy_price,
+          currentPrice: holding.live_price,
+          totalCost: holding.invested_value,
+          currentValue: holding.current_value,
+          profitLoss: holding.pnl,
+          profitLossPercent: holding.invested_value > 0
+            ? (holding.pnl / holding.invested_value) * 100
+            : 0,
+          lastUpdated: new Date().toISOString(),
+        })),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      console.log(transformedPortfolio);
+      setPortfolio(transformedPortfolio);
+    } catch (error: any) {
+      console.error("Failed to fetch portfolio:", error);
+      const emptyPortfolio: Portfolio = {
+        userId: "",
+        totalValue: 0,
+        cashBalance: 0,
+        totalInvested: 0,
+        totalProfitLoss: 0,
+        totalProfitLossPercent: 0,
+        holdings: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setPortfolio(emptyPortfolio);
     }
   }, []);
 
-  // Login function
+  const loadUser = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const verified = await authService.verify();
+      if (verified) {
+        const userData: User = {
+          username: verified.username,
+          balance: 0,
+        };
+        setUser(userData);
+        setIsAuthenticated(true);
+        await fetchPortfolio();
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
+        setPortfolio(null);
+      }
+    } catch (error) {
+      console.error("Failed to load user:", error);
+      setUser(null);
+      setIsAuthenticated(false);
+      setPortfolio(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchPortfolio]);
+
   const login = useCallback(
     async (credentials: LoginCredentials): Promise<boolean> => {
       setIsLoading(true);
       try {
-        // Simulate API delay
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
-        // Check against dummy credentials
-        if (
-          credentials.email === DUMMY_CREDENTIALS.email &&
-          credentials.password === DUMMY_CREDENTIALS.password
-        ) {
-          // Generate a dummy token
-          const dummyToken = `dummy_token_${Date.now()}`;
-
-          // Store in localStorage
-          localStorage.setItem("auth_user", JSON.stringify(DUMMY_USER));
-          localStorage.setItem("auth_token", dummyToken);
-
-          setUser(DUMMY_USER);
-          setIsAuthenticated(true);
-          return true;
-        }
-
-        // Invalid credentials
-        return false;
+        const response = await authService.login(credentials);
+        const userData: User = {
+          username: response.user.username,
+          balance: response.user.balance,
+        };
+        setUser(userData);
+        setIsAuthenticated(true);
+        await fetchPortfolio();
+        return true;
       } catch (error) {
         console.error("Login failed:", error);
         return false;
@@ -103,18 +127,54 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setIsLoading(false);
       }
     },
-    []
+    [fetchPortfolio]
   );
 
-  // Logout function
-  const logout = useCallback(() => {
-    localStorage.removeItem("auth_user");
-    localStorage.removeItem("auth_token");
-    setUser(null);
-    setIsAuthenticated(false);
+  const register = useCallback(
+    async (credentials: LoginCredentials): Promise<boolean> => {
+      setIsLoading(true);
+      try {
+        const response = await authService.register(credentials);
+        const userData: User = {
+          username: response.user.username,
+          balance: response.user.balance,
+        };
+        setUser(userData);
+        setIsAuthenticated(true);
+        try {
+          await fetchPortfolio();
+        } catch (portfolioError) {
+          console.error("Portfolio fetch after registration failed:", portfolioError);
+        }
+        return true;
+      } catch (error: any) {
+        console.error("Registration failed:", error);
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [fetchPortfolio]
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
+      setPortfolio(null);
+    }
   }, []);
 
-  // Load user on mount
+  const refreshPortfolio = useCallback(async () => {
+    if (isAuthenticated) {
+      await fetchPortfolio();
+    }
+  }, [isAuthenticated, fetchPortfolio]);
+
   useEffect(() => {
     loadUser();
   }, [loadUser]);
@@ -123,15 +183,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     isAuthenticated,
     isLoading,
+    portfolio,
     login,
+    register,
     logout,
     loadUser,
+    refreshPortfolio,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// Custom hook to use auth context
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -140,5 +202,4 @@ export function useAuth(): AuthContextType {
   return context;
 }
 
-// Export context for edge cases
 export { AuthContext };
