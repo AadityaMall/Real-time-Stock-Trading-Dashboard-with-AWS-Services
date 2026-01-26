@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { PriceChart } from '@/components/features/PriceChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,69 +9,137 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Loading } from '@/components/ui/loading';
 import { formatRupee } from '@/lib/utils';
-import {
-  getStockQuote,
-  generatePriceHistory,
-  subscribeToPriceUpdates,
-} from '@/lib/mockData';
-import type { StockQuote, PriceHistory, StockPrice } from '@/lib/types';
+import { useStocks } from '@/context/StockContext';
+import { useAuth } from '@/context/AuthContext';
+import { tradingService } from '@/services/tradingService';
+import type { StockQuote, PriceHistory, PricePoint } from '@/lib/types';
 
 export default function StockDetailPage() {
   const params = useParams();
   const router = useRouter();
   const symbol = params?.symbol as string;
+  const { getStockBySymbol } = useStocks();
+  const { refreshPortfolio, portfolio } = useAuth();
 
-  const [stock, setStock] = useState<StockQuote | null>(null);
-  const [priceHistory, setPriceHistory] = useState<PriceHistory | null>(null);
   const [timeframe, setTimeframe] = useState<PriceHistory['timeframe']>('1D');
   const [orderType, setOrderType] = useState<'buy' | 'sell'>('buy');
   const [quantity, setQuantity] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!symbol) return;
+  const stock = useMemo(() => {
+    if (!symbol) return null;
+    return getStockBySymbol(symbol);
+  }, [symbol, getStockBySymbol]);
 
-    const stockQuote = getStockQuote(symbol);
-    if (!stockQuote) {
-      router.push('/dashboard');
-      return;
+  // Generate simple price history based on current price
+  const priceHistory = useMemo<PriceHistory | null>(() => {
+    if (!stock || stock.price === undefined) return null;
+
+    const points = timeframe === '1D' ? 100 : timeframe === '1W' ? 35 : timeframe === '1M' ? 30 : 100;
+    const data: PricePoint[] = [];
+    const now = new Date();
+    let currentPrice = stock.price || 0;
+    const isPositive = (stock.changePercent || 0) >= 0;
+    const variation = (stock.price || 0) * 0.1; // 10% variation
+
+    for (let i = points - 1; i >= 0; i--) {
+      const timestamp = new Date(now.getTime() - i * 60000); // 1 minute intervals
+      const trend = isPositive ? 1 : -1;
+      const randomVariation = (Math.random() - 0.5) * variation;
+      currentPrice = (stock.price || 0) + (trend * (points - i) / points * variation * 0.3) + randomVariation;
+      
+      data.push({
+        timestamp: timestamp.toISOString(),
+        price: Math.max(0, currentPrice),
+        volume: Math.floor(Math.random() * 50000000 + 10000000),
+      });
     }
 
-    setStock(stockQuote);
-    setPriceHistory(generatePriceHistory(symbol, timeframe));
-
-    // Subscribe to real-time price updates
-    const unsubscribe = subscribeToPriceUpdates(symbol, (price: StockPrice) => {
-      setStock((prev) => (prev ? { ...prev, ...price } : null));
-    }, 2000);
-
-    return () => unsubscribe();
-  }, [symbol, timeframe, router]);
+    return {
+      symbol: stock.symbol,
+      data,
+      timeframe,
+    };
+  }, [stock, timeframe]);
 
   useEffect(() => {
-    if (symbol) {
-      const history = generatePriceHistory(symbol, timeframe);
-      setPriceHistory(history);
+    if (!symbol || !stock) {
+      router.push('/stocks');
     }
-  }, [timeframe, symbol]);
+  }, [symbol, stock, router]);
 
   const handleTrade = async () => {
     if (!stock || !quantity || parseFloat(quantity) <= 0) return;
 
     setIsLoading(true);
-    // Simulate trade execution
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    alert(`${orderType === 'buy' ? 'Buy' : 'Sell'} order placed for ${quantity} shares of ${stock.symbol}`);
-    setIsLoading(false);
-    setQuantity('');
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const qty = parseInt(quantity, 10);
+      
+      if (isNaN(qty) || qty <= 0) {
+        throw new Error('Please enter a valid quantity');
+      }
+
+      // Check if user has enough cash for buy orders
+      if (orderType === 'buy' && portfolio && stock.price) {
+        const totalCost = qty * stock.price;
+        if (totalCost > (portfolio.cashBalance || 0)) {
+          throw new Error(`Insufficient funds. You need ${formatRupee(totalCost)} but only have ${formatRupee(portfolio.cashBalance || 0)}`);
+        }
+      }
+
+      // Check if user has enough shares for sell orders
+      if (orderType === 'sell' && portfolio) {
+        const holding = portfolio.holdings?.find(h => h.symbol === stock.symbol);
+        if (!holding || (holding.quantity || 0) < qty) {
+          throw new Error(`Insufficient shares. You only have ${holding?.quantity || 0} shares of ${stock.symbol}`);
+        }
+      }
+
+      // Execute the trade
+      const result = orderType === 'buy' 
+        ? await tradingService.buyStock(stock.symbol, qty)
+        : await tradingService.sellStock(stock.symbol, qty);
+
+      // Refresh portfolio after successful trade
+      await refreshPortfolio();
+
+      // Show success message
+      const tradePrice = result.trade?.price || result.price || stock.price || 0;
+      setSuccess(
+        `Successfully ${orderType === 'buy' ? 'bought' : 'sold'} ${qty} shares of ${stock.symbol} at ${formatRupee(tradePrice)} per share`
+      );
+      
+      // Clear quantity input
+      setQuantity('');
+
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSuccess(null);
+      }, 5000);
+    } catch (err: any) {
+      const errorMessage = err?.message || `Failed to ${orderType} stock. Please try again.`;
+      setError(errorMessage);
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setError(null);
+      }, 5000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!stock || !priceHistory) {
     return <Loading />;
   }
 
-  const isPositive = stock.changePercent >= 0;
-  const totalCost = parseFloat(quantity) * stock.price || 0;
+  const isPositive = (stock.changePercent || 0) >= 0;
+  const totalCost = parseFloat(quantity || '0') * (stock.price || 0);
 
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-950 via-gray-900 to-gray-950 relative overflow-hidden">
@@ -145,8 +213,8 @@ export default function StockDetailPage() {
                   <span className={`flex items-center justify-center w-6 h-6 rounded-full ${isPositive ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
                     {isPositive ? '↑' : '↓'}
                   </span>
-                  <span>{isPositive ? '+' : ''}{formatRupee(stock.change)}</span>
-                  <span className="text-base opacity-80">({isPositive ? '+' : ''}{stock.changePercent.toFixed(2)}%)</span>
+                  <span>{isPositive ? '+' : ''}{formatRupee(stock.change || 0)}</span>
+                  <span className="text-base opacity-80">({isPositive ? '+' : ''}{(stock.changePercent || 0).toFixed(2)}%)</span>
                 </div>
               </div>
             </div>
@@ -191,10 +259,10 @@ export default function StockDetailPage() {
             {/* Key Metrics */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
               {[
-                { label: 'Open', value: formatRupee(stock.open), color: 'text-white', icon: '○' },
-                { label: 'High', value: formatRupee(stock.high), color: 'text-green-400', icon: '↑' },
-                { label: 'Low', value: formatRupee(stock.low), color: 'text-red-400', icon: '↓' },
-                { label: 'Volume', value: `${(stock.volume / 1000000).toFixed(2)}M`, color: 'text-blue-400', icon: '◈' },
+                { label: 'Open', value: formatRupee(stock.open || 0), color: 'text-white', icon: '○' },
+                { label: 'High', value: formatRupee(stock.high || 0), color: 'text-green-400', icon: '↑' },
+                { label: 'Low', value: formatRupee(stock.low || 0), color: 'text-red-400', icon: '↓' },
+                { label: 'Volume', value: `${((stock.volume || 0) / 1000000).toFixed(2)}M`, color: 'text-blue-400', icon: '◈' },
               ].map((metric) => (
                 <div
                   key={metric.label}
@@ -233,7 +301,9 @@ export default function StockDetailPage() {
                       <div 
                         className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full border-2 border-gray-900 shadow-lg"
                         style={{ 
-                          left: `${Math.min(100, Math.max(0, ((stock.price - stock.low) / (stock.high - stock.low)) * 100))}%`,
+                          left: `${Math.min(100, Math.max(0, stock.high && stock.low && stock.high !== stock.low 
+                            ? (((stock.price || 0) - stock.low) / (stock.high - stock.low)) * 100 
+                            : 50))}%`,
                           transform: 'translate(-50%, -50%)'
                         }}
                       />
@@ -245,11 +315,11 @@ export default function StockDetailPage() {
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Prev Close</p>
-                    <p className="text-lg font-semibold text-white">{formatRupee(stock.price - stock.change)}</p>
+                    <p className="text-lg font-semibold text-white">{formatRupee((stock.price || 0) - (stock.change || 0))}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Market Cap</p>
-                    <p className="text-lg font-semibold text-white">₹{((stock.price * stock.volume) / 10000000000).toFixed(2)}B</p>
+                    <p className="text-lg font-semibold text-white">₹{(((stock.price || 0) * (stock.volume || 0)) / 10000000000).toFixed(2)}B</p>
                   </div>
                 </div>
               </CardContent>
@@ -315,7 +385,7 @@ export default function StockDetailPage() {
                           onChange={(e) => setQuantity(e.target.value)}
                           min="1"
                           step="1"
-                          className="text-lg font-semibold bg-gray-900/50 border-white/10 focus:border-blue-500/50 focus:ring-blue-500/20 transition-all duration-300 pr-16"
+                          className="text-lg font-semibold bg-gray-900/50 border-white/10 focus:border-blue-500/50 focus:ring-blue-500/20 transition-all duration-300 pr-16 text-white"
                         />
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">shares</span>
                       </div>
@@ -351,6 +421,30 @@ export default function StockDetailPage() {
                         </p>
                       )}
                     </div>
+
+                    {/* Error Message */}
+                    {error && (
+                      <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+                        <div className="flex items-start gap-3">
+                          <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-sm text-red-400">{error}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Success Message */}
+                    {success && (
+                      <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30">
+                        <div className="flex items-start gap-3">
+                          <svg className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-sm text-green-400">{success}</p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Trade Button */}
                     <Button
@@ -400,7 +494,7 @@ export default function StockDetailPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-400">52W Range</span>
                     <span className="text-sm font-semibold text-white">
-                      {formatRupee(stock.low * 0.7)} - {formatRupee(stock.high * 1.3)}
+                      {formatRupee((stock.low || 0) * 0.7)} - {formatRupee((stock.high || 0) * 1.3)}
                     </span>
                   </div>
                 </CardContent>

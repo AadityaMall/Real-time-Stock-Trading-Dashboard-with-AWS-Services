@@ -10,7 +10,12 @@ class TradingService:
         portfolio = self.portfolio_service.get_portfolio(username)
 
         stock = IndianMarketService.get_stock(symbol)
-        current_price = stock["price"]
+        if stock is None:
+            raise ValueError(f"Failed to fetch stock data for {symbol}")
+        
+        current_price = stock.get("price")
+        if current_price is None:
+            raise ValueError(f"Invalid price data for {symbol}")
 
         total_cost = current_price * quantity
 
@@ -35,7 +40,12 @@ class TradingService:
         portfolio = self.portfolio_service.get_portfolio(username)
 
         stock = IndianMarketService.get_stock(symbol)
-        current_price = stock["price"]
+        if stock is None:
+            raise ValueError(f"Failed to fetch stock data for {symbol}")
+        
+        current_price = stock.get("price")
+        if current_price is None:
+            raise ValueError(f"Invalid price data for {symbol}")
 
         if quantity <= 0:
             raise ValueError("Quantity must be greater than 0")

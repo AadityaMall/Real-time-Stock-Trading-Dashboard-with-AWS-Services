@@ -1,43 +1,21 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { StockCard } from '@/components/features/StockCard';
 import { Loading } from '@/components/ui/loading';
-import { getAllStockQuotes, subscribeToPriceUpdates } from '@/lib/mockData';
+import { useStocks } from '@/context/StockContext';
+import { formatRupee } from '@/lib/utils';
 import type { StockQuote } from '@/lib/types';
 
 type SortOption = 'name' | 'price' | 'change' | 'volume';
 type FilterOption = 'all' | 'gainers' | 'losers';
 
 export default function StocksPage() {
-  const [stocks, setStocks] = useState<StockQuote[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { stocks, isLoading } = useStocks();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('name');
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-
-  useEffect(() => {
-    // Initial load
-    const initialStocks = getAllStockQuotes();
-    setStocks(initialStocks);
-    setIsLoading(false);
-
-    // Subscribe to price updates for all stocks
-    const unsubscribeFunctions = initialStocks.map((stock) =>
-      subscribeToPriceUpdates(stock.symbol, (price) => {
-        setStocks((prev) =>
-          prev.map((s) =>
-            s.symbol === stock.symbol ? { ...s, ...price } : s
-          )
-        );
-      }, 3000)
-    );
-
-    return () => {
-      unsubscribeFunctions.forEach((unsub) => unsub());
-    };
-  }, []);
 
   // Filter and sort stocks
   const filteredAndSortedStocks = useMemo(() => {
@@ -56,9 +34,9 @@ export default function StocksPage() {
 
     // Apply gainers/losers filter
     if (filterBy === 'gainers') {
-      result = result.filter((stock) => stock.changePercent >= 0);
+      result = result.filter((stock) => (stock.changePercent || 0) >= 0);
     } else if (filterBy === 'losers') {
-      result = result.filter((stock) => stock.changePercent < 0);
+      result = result.filter((stock) => (stock.changePercent || 0) < 0);
     }
 
     // Apply sorting
@@ -67,11 +45,11 @@ export default function StocksPage() {
         case 'name':
           return a.symbol.localeCompare(b.symbol);
         case 'price':
-          return b.price - a.price;
+          return (b.price || 0) - (a.price || 0);
         case 'change':
-          return b.changePercent - a.changePercent;
+          return (b.changePercent || 0) - (a.changePercent || 0);
         case 'volume':
-          return b.volume - a.volume;
+          return (b.volume || 0) - (a.volume || 0);
         default:
           return 0;
       }
@@ -82,9 +60,12 @@ export default function StocksPage() {
 
   // Calculate market stats
   const marketStats = useMemo(() => {
-    const gainers = stocks.filter((s) => s.changePercent >= 0).length;
-    const losers = stocks.filter((s) => s.changePercent < 0).length;
-    const avgChange = stocks.reduce((sum, s) => sum + s.changePercent, 0) / stocks.length || 0;
+    if (!stocks || stocks.length === 0) {
+      return { gainers: 0, losers: 0, avgChange: 0, total: 0 };
+    }
+    const gainers = stocks.filter((s) => (s.changePercent || 0) >= 0).length;
+    const losers = stocks.filter((s) => (s.changePercent || 0) < 0).length;
+    const avgChange = stocks.reduce((sum, s) => sum + (s.changePercent || 0), 0) / stocks.length || 0;
     return { gainers, losers, avgChange, total: stocks.length };
   }, [stocks]);
 
@@ -334,7 +315,11 @@ export default function StocksPage() {
 
 // Stock List Item Component for List View
 function StockListItem({ stock }: { stock: StockQuote }) {
-  const isPositive = stock.changePercent >= 0;
+  if (!stock || !stock.symbol) {
+    return null;
+  }
+
+  const isPositive = (stock.changePercent || 0) >= 0;
 
   return (
     <a
@@ -353,7 +338,7 @@ function StockListItem({ stock }: { stock: StockQuote }) {
       {/* Mobile: Price and Change inline */}
       <div className="flex sm:hidden items-center justify-between pl-4">
         <div>
-          <div className="text-white font-semibold">₹{stock.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+          <div className="text-white font-semibold">{formatRupee(stock.price)}</div>
           <div className="text-xs text-gray-500">{stock.exchange}</div>
         </div>
         <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm font-semibold ${
@@ -362,14 +347,14 @@ function StockListItem({ stock }: { stock: StockQuote }) {
           <svg className={`w-3 h-3 ${isPositive ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
           </svg>
-          {Math.abs(stock.changePercent).toFixed(2)}%
+          {Math.abs(stock.changePercent || 0).toFixed(2)}%
         </div>
       </div>
 
       {/* Desktop: Separate columns */}
       <div className="hidden sm:flex items-center justify-end">
         <span className="text-white font-medium">
-          ₹{stock.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          {formatRupee(stock.price)}
         </span>
       </div>
 
@@ -380,13 +365,13 @@ function StockListItem({ stock }: { stock: StockQuote }) {
           <svg className={`w-3 h-3 ${isPositive ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
           </svg>
-          {isPositive ? '+' : ''}{stock.changePercent.toFixed(2)}%
+          {isPositive ? '+' : ''}{(stock.changePercent || 0).toFixed(2)}%
         </span>
       </div>
 
       <div className="hidden sm:flex items-center justify-end">
         <span className="text-gray-400 text-sm">
-          {(stock.volume / 1000000).toFixed(2)}M
+          {((stock.volume || 0) / 1000000).toFixed(2)}M
         </span>
       </div>
 

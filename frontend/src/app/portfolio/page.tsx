@@ -8,11 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Loading } from '@/components/ui/loading';
 import { formatRupee, formatPercent, formatLargeNumber } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
-import {
-  subscribeToPriceUpdates,
-  generatePriceHistory,
-} from '@/lib/mockData';
-import type { Portfolio, Holding, PriceHistory } from '@/lib/types';
+import { useStocks } from '@/context/StockContext';
+import type { Portfolio, Holding } from '@/lib/types';
 
 // Mini sparkline component for holdings
 function MiniSparkline({ data, isPositive }: { data: number[]; isPositive: boolean }) {
@@ -120,19 +117,10 @@ function AllocationChart({ holdings, totalValue }: { holdings: Holding[]; totalV
   );
 }
 
-// Transaction history mock data
-const mockTransactions = [
-  { id: '1', symbol: 'AAPL', type: 'buy' as const, quantity: 5, price: 172.50, date: '2026-01-18', time: '10:30 AM' },
-  { id: '2', symbol: 'NVDA', type: 'buy' as const, quantity: 2, price: 865.00, date: '2026-01-15', time: '2:15 PM' },
-  { id: '3', symbol: 'MSFT', type: 'sell' as const, quantity: 3, price: 382.20, date: '2026-01-12', time: '11:45 AM' },
-  { id: '4', symbol: 'AAPL', type: 'buy' as const, quantity: 5, price: 168.00, date: '2026-01-10', time: '9:35 AM' },
-  { id: '5', symbol: 'MSFT', type: 'buy' as const, quantity: 8, price: 371.50, date: '2026-01-05', time: '3:20 PM' },
-];
-
 export default function PortfolioPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading, portfolio, refreshPortfolio } = useAuth();
-  const [priceHistories, setPriceHistories] = useState<Record<string, number[]>>({});
+  const { isAuthenticated, isLoading: authLoading, portfolio } = useAuth();
+  const { getStockBySymbol } = useStocks();
   const [activeTab, setActiveTab] = useState<'overview' | 'holdings' | 'transactions'>('overview');
 
   // Redirect to login if not authenticated
@@ -142,30 +130,21 @@ export default function PortfolioPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
-  useEffect(() => {
-    if (portfolio && portfolio.holdings && portfolio.holdings.length > 0) {
-      const histories: Record<string, number[]> = {};
-      portfolio.holdings.forEach((holding) => {
-        if (holding && holding.symbol) {
-          const history = generatePriceHistory(holding.symbol, '1W');
-          histories[holding.symbol] = history.data.map((p) => p.price);
-        }
-      });
-      setPriceHistories(histories);
-
-      const unsubscribeFunctions = portfolio.holdings
-        .filter((holding) => holding && holding.symbol)
-        .map((holding) =>
-          subscribeToPriceUpdates(holding.symbol, () => {
-            refreshPortfolio();
-          }, 3000)
-        );
-
-      return () => {
-        unsubscribeFunctions.forEach((unsub) => unsub());
-      };
+  // Generate simple price history for sparklines based on current price
+  const generateSimpleHistory = (currentPrice: number, isPositive: boolean): number[] => {
+    const points = 20;
+    const variation = currentPrice * 0.05; // 5% variation
+    const history: number[] = [];
+    
+    for (let i = 0; i < points; i++) {
+      const trend = isPositive ? 1 : -1;
+      const randomVariation = (Math.random() - 0.5) * variation;
+      const price = currentPrice + (trend * (points - i) / points * variation * 0.5) + randomVariation;
+      history.push(Math.max(0, price));
     }
-  }, [portfolio, refreshPortfolio]);
+    
+    return history;
+  };
 
   // Calculate performance metrics
   const metrics = useMemo(() => {
@@ -485,12 +464,15 @@ export default function PortfolioPage() {
                             </td>
                             <td className="py-4 px-4 sm:px-6 hidden lg:table-cell">
                               <div className="flex justify-center">
-                                {priceHistories[holding.symbol] && (
-                                  <MiniSparkline 
-                                    data={priceHistories[holding.symbol]} 
-                                    isPositive={isProfitable}
-                                  />
-                                )}
+                                {(() => {
+                                  const history = generateSimpleHistory(holding.currentPrice, holding.profitLoss >= 0);
+                                  return (
+                                    <MiniSparkline
+                                      data={history}
+                                      isPositive={isProfitable}
+                                    />
+                                  );
+                                })()}
                               </div>
                             </td>
                             <td className="py-4 px-4 sm:px-6 text-right">
@@ -542,56 +524,10 @@ export default function PortfolioPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-gray-800/30">
-                {mockTransactions.map((transaction) => (
-                  <div 
-                    key={transaction.id}
-                    className="flex items-center justify-between py-4 px-4 sm:px-6 hover:bg-white/[0.02] transition-colors"
-                  >
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        transaction.type === 'buy' 
-                          ? 'bg-emerald-500/15 text-emerald-400' 
-                          : 'bg-red-500/15 text-red-400'
-                      }`}>
-                        {transaction.type === 'buy' ? (
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m0-16l-4 4m4-4l4 4" />
-                          </svg>
-                        ) : (
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 20V4m0 16l-4-4m4 4l4-4" />
-                          </svg>
-                        )}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-white">{transaction.symbol}</span>
-                          <Badge 
-                            variant="outline" 
-                            className={`text-[10px] px-1.5 py-0 ${
-                              transaction.type === 'buy' 
-                                ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' 
-                                : 'border-red-500/30 text-red-400 bg-red-500/10'
-                            }`}
-                          >
-                            {transaction.type.toUpperCase()}
-                          </Badge>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {transaction.quantity} shares @ {formatRupee(transaction.price)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={`font-semibold ${transaction.type === 'buy' ? 'text-white' : 'text-emerald-400'}`}>
-                        {transaction.type === 'buy' ? '-' : '+'}{formatRupee(transaction.quantity * transaction.price)}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {transaction.date} • {transaction.time}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                <div className="py-12 text-center">
+                  <div className="text-gray-500 mb-2">No transactions yet</div>
+                  <div className="text-sm text-gray-600">Your trading history will appear here</div>
+                </div>
               </div>
             </CardContent>
           </Card>

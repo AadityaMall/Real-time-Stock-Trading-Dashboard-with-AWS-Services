@@ -14,7 +14,10 @@ export function formatCurrency(value: number, decimals: number = 2): string {
   }).format(value);
 }
 
-export function formatRupee(value: number, decimals: number = 2): string {
+export function formatRupee(value: number | null | undefined, decimals: number = 2): string {
+  if (value === null || value === undefined || isNaN(value)) {
+    return '₹0.00';
+  }
   return `₹${value.toLocaleString('en-IN', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,

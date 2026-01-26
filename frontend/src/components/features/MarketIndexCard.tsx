@@ -8,7 +8,11 @@ interface MarketIndexCardProps {
 }
 
 export function MarketIndexCard({ index }: MarketIndexCardProps) {
-  const isPositive = index.changePercent >= 0;
+  if (!index || index.value === undefined) {
+    return null;
+  }
+
+  const isPositive = (index.changePercent || 0) >= 0;
   const glowColor = isPositive ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)';
   const accentGradient = isPositive 
     ? 'from-emerald-500 via-emerald-400 to-teal-400' 

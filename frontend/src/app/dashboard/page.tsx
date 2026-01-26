@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { StockCard } from '@/components/features/StockCard';
@@ -10,18 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Loading } from '@/components/ui/loading';
 import { formatRupee } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
-import {
-  getAllStockQuotes,
-  getMarketSummary,
-  subscribeToPriceUpdates,
-} from '@/lib/mockData';
-import type { StockQuote, MarketSummary } from '@/lib/types';
+import { useStocks } from '@/context/StockContext';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading, portfolio } = useAuth();
-  const [stocks, setStocks] = useState<StockQuote[]>([]);
-  const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
+  const { stocks, marketSummary, isLoading: stocksLoading } = useStocks();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -30,40 +24,16 @@ export default function DashboardPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
-  useEffect(() => {
-    const initialStocks = getAllStockQuotes();
-    const summary = getMarketSummary();
-
-    setStocks(initialStocks);
-    setMarketSummary(summary);
-
-    const unsubscribeFunctions = initialStocks.map((stock) =>
-      subscribeToPriceUpdates(stock.symbol, (price) => {
-        setStocks((prev) =>
-          prev.map((s) =>
-            s.symbol === stock.symbol
-              ? { ...s, ...price }
-              : s
-          )
-        );
-      }, 3000)
-    );
-
-    return () => {
-      unsubscribeFunctions.forEach((unsub) => unsub());
-    };
-  }, []);
-
   // Show loading while checking auth or loading data
-  if (authLoading || !isAuthenticated) {
+  if (authLoading || !isAuthenticated || stocksLoading) {
     return <Loading />;
   }
 
-  if (!marketSummary || !portfolio) {
+  if (!marketSummary || !portfolio || !stocks || stocks.length === 0) {
     return <Loading />;
   }
 
-  const isPositive = portfolio.totalProfitLoss >= 0;
+  const isPositive = (portfolio.totalProfitLoss || 0) >= 0;
 
   return (
     <div className="min-h-screen">
@@ -168,9 +138,15 @@ export default function DashboardPage() {
         <div className="mb-6 sm:mb-8">
           <h2 className="mb-3 sm:mb-4 text-lg sm:text-xl font-bold text-white">Market Overview</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {marketSummary.indices.map((index) => (
-              <MarketIndexCard key={index.symbol} index={index} />
-            ))}
+            {marketSummary.indices && marketSummary.indices.length > 0 ? (
+              marketSummary.indices.map((index) => (
+                <MarketIndexCard key={index.symbol} index={index} />
+              ))
+            ) : (
+              <div className="col-span-full text-center text-gray-500 py-8">
+                No market indices available
+              </div>
+            )}
           </div>
         </div>
 
@@ -214,9 +190,15 @@ export default function DashboardPage() {
               <Badge className="text-[10px] sm:text-xs">Live</Badge>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {marketSummary.topGainers.slice(0, 2).map((stock) => (
-                <StockCard key={stock.symbol} stock={stock} />
-              ))}
+              {marketSummary.topGainers && marketSummary.topGainers.length > 0 ? (
+                marketSummary.topGainers.slice(0, 2).map((stock) => (
+                  <StockCard key={stock.symbol} stock={stock} />
+                ))
+              ) : (
+                <div className="col-span-full text-center text-gray-500 py-4">
+                  No gainers available
+                </div>
+              )}
             </div>
             <Link href="/stocks" className="inline-flex items-center gap-1 mt-3 text-sm text-blue-400 hover:text-blue-300 transition-colors">
               Explore more <span className="text-xs">→</span>
@@ -230,9 +212,15 @@ export default function DashboardPage() {
               <Badge className="text-[10px] sm:text-xs">Live</Badge>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {marketSummary.topLosers.slice(0, 2).map((stock) => (
-                <StockCard key={stock.symbol} stock={stock} />
-              ))}
+              {marketSummary.topLosers && marketSummary.topLosers.length > 0 ? (
+                marketSummary.topLosers.slice(0, 2).map((stock) => (
+                  <StockCard key={stock.symbol} stock={stock} />
+                ))
+              ) : (
+                <div className="col-span-full text-center text-gray-500 py-4">
+                  No losers available
+                </div>
+              )}
             </div>
             <Link href="/stocks" className="inline-flex items-center gap-1 mt-3 text-sm text-blue-400 hover:text-blue-300 transition-colors">
               Explore more <span className="text-xs">→</span>
@@ -247,9 +235,15 @@ export default function DashboardPage() {
             <Badge  className="text-[10px] sm:text-xs">Live Updates</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {stocks.slice(0, 4).map((stock) => (
-              <StockCard key={stock.symbol} stock={stock} showDetails />
-            ))}
+            {stocks && stocks.length > 0 ? (
+              stocks.slice(0, 4).map((stock) => (
+                <StockCard key={stock.symbol} stock={stock} showDetails />
+              ))
+            ) : (
+              <div className="col-span-full text-center text-gray-500 py-8">
+                No stocks available
+              </div>
+            )}
           </div>
           <Link href="/stocks" className="inline-flex items-center gap-1 mt-3 text-sm text-blue-400 hover:text-blue-300 transition-colors">
             Explore more <span className="text-xs">→</span>

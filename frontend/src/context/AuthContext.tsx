@@ -34,37 +34,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const fetchPortfolio = useCallback(async () => {
     try {
       const portfolioData = await authService.getPortfolio();
-      console.log(portfolioData);
+      if (!portfolioData) {
+        throw new Error("No portfolio data received");
+      }
+      
       const transformedPortfolio: Portfolio = {
-        userId: portfolioData.username,
-        totalValue: portfolioData.net_worth,
-        cashBalance: portfolioData.cash_balance,
-        totalInvested: portfolioData.total_invested,
-        totalProfitLoss: portfolioData.net_worth - portfolioData.total_invested - portfolioData.cash_balance,
-        totalProfitLossPercent: portfolioData.total_invested > 0
-          ? ((portfolioData.current_holdings_value - portfolioData.total_invested) / portfolioData.total_invested) * 100
+        userId: portfolioData.username || "",
+        totalValue: portfolioData.net_worth || 0,
+        cashBalance: portfolioData.cash_balance || 0,
+        totalInvested: portfolioData.total_invested || 0,
+        totalProfitLoss: (portfolioData.net_worth || 0) - (portfolioData.total_invested || 0) - (portfolioData.cash_balance || 0),
+        totalProfitLossPercent: (portfolioData.total_invested || 0) > 0
+          ? (((portfolioData.current_holdings_value || 0) - (portfolioData.total_invested || 0)) / (portfolioData.total_invested || 0)) * 100
           : 0,
-        holdings: portfolioData.holdings.map((holding) => ({
-          symbol: holding.symbol,
-          stockName: holding.symbol,
-          quantity: holding.quantity,
-          averagePrice: holding.avg_buy_price,
-          currentPrice: holding.live_price,
-          totalCost: holding.invested_value,
-          currentValue: holding.current_value,
-          profitLoss: holding.pnl,
-          profitLossPercent: holding.invested_value > 0
-            ? (holding.pnl / holding.invested_value) * 100
+        holdings: (portfolioData.holdings || []).map((holding) => ({
+          symbol: holding.symbol || "",
+          stockName: holding.symbol || "",
+          quantity: holding.quantity || 0,
+          averagePrice: holding.avg_buy_price || 0,
+          currentPrice: holding.live_price || 0,
+          totalCost: holding.invested_value || 0,
+          currentValue: holding.current_value || 0,
+          profitLoss: holding.pnl || 0,
+          profitLossPercent: (holding.invested_value || 0) > 0
+            ? ((holding.pnl || 0) / (holding.invested_value || 0)) * 100
             : 0,
           lastUpdated: new Date().toISOString(),
         })),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      console.log(transformedPortfolio);
       setPortfolio(transformedPortfolio);
     } catch (error: any) {
-      console.error("Failed to fetch portfolio:", error);
+      // Silently handle error and set empty portfolio
       const emptyPortfolio: Portfolio = {
         userId: "",
         totalValue: 0,
@@ -98,7 +100,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setPortfolio(null);
       }
     } catch (error) {
-      console.error("Failed to load user:", error);
+      // Silently handle error - user not authenticated
       setUser(null);
       setIsAuthenticated(false);
       setPortfolio(null);
@@ -121,7 +123,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await fetchPortfolio();
         return true;
       } catch (error) {
-        console.error("Login failed:", error);
+        // Return false on login failure
         return false;
       } finally {
         setIsLoading(false);
@@ -144,11 +146,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         try {
           await fetchPortfolio();
         } catch (portfolioError) {
-          console.error("Portfolio fetch after registration failed:", portfolioError);
+          // Portfolio fetch failed but registration succeeded
         }
         return true;
       } catch (error: any) {
-        console.error("Registration failed:", error);
+        // Return false on registration failure
         return false;
       } finally {
         setIsLoading(false);
@@ -161,7 +163,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await authService.logout();
     } catch (error) {
-      console.error("Logout failed:", error);
+      // Silently handle logout error - still clear local state
     } finally {
       setUser(null);
       setIsAuthenticated(false);

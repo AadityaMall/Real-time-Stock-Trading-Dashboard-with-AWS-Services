@@ -12,7 +12,11 @@ interface StockCardProps {
 
 
 export function StockCard({ stock, showDetails = false }: StockCardProps) {
-  const isPositive = stock.changePercent >= 0;
+  if (!stock || !stock.symbol) {
+    return null;
+  }
+
+  const isPositive = (stock.changePercent || 0) >= 0;
   const seed = stock.symbol.charCodeAt(0) + stock.symbol.charCodeAt(stock.symbol.length - 1);
   
   // Dynamic colors based on performance
@@ -89,7 +93,7 @@ export function StockCard({ stock, showDetails = false }: StockCardProps) {
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
                   </svg>
-                  <span>{Math.abs(stock.changePercent).toFixed(2)}%</span>
+                  <span>{Math.abs(stock.changePercent || 0).toFixed(2)}%</span>
                 </div>
               </div>
               
