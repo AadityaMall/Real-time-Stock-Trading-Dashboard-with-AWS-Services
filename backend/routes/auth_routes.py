@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, make_response
-from middleware.auth_middleware import jwt_required
-from conifg import settings
+from backend.middleware.auth_middleware import jwt_required
+from backend.config import settings
 from datetime import datetime, timedelta
 auth_bp = Blueprint("auth", __name__)
 

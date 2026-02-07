@@ -1,25 +1,35 @@
 from flasgger import Swagger
 from flask import Flask
 from flask_cors import CORS
-
-from repositories.user_store import UserStore
-from repositories.portfolio_store import PortfolioStore
-from services.auth_service import AuthService
-from services.trade_service import TradingService
-from services.portfolio_service import PortfolioService
-from routes.auth_routes import create_auth_routes
-from routes.market_routes import create_market_routes
-from routes.trading_routes import create_trading_routes
-from routes.portfolio_routes import create_portfolio_routes
+from backend.config import settings
+from backend.repositories.user_store import UserStore
+from backend.repositories.portfolio_store import PortfolioStore
+from backend.repositories.user_store_dynamo import UserStoreDynamo
+from backend.repositories.portfolio_store_dynamo import PortfolioStoreDynamo
+from backend.services.auth_service import AuthService
+from backend.services.trade_service import TradingService
+from backend.services.portfolio_service import PortfolioService
+from backend.routes.auth_routes import create_auth_routes
+from backend.routes.market_routes import create_market_routes
+from backend.routes.trading_routes import create_trading_routes
+from backend.routes.portfolio_routes import create_portfolio_routes
 
 def create_app():
     app = Flask(__name__)
     CORS(app, supports_credentials=True, origins=["http://localhost:3000"])
-
+    app.secret_key = settings.SECRET_KEY
     # Initialize core components
-    user_store = UserStore()
+    if settings.USE_AWS == 'True':
+        print("using dynamodb")
+        user_store = UserStoreDynamo()
+        portfolio_store = PortfolioStoreDynamo()
+    else:
+        print("using local dictionaries")
+        user_store = UserStore()
+        portfolio_store = PortfolioStore()
+
+
     auth_service = AuthService(user_store)
-    portfolio_store = PortfolioStore()
     portfolio_service = PortfolioService(portfolio_store)
     trading_service = TradingService(portfolio_service)
     # Register routes

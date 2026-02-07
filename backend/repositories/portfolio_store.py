@@ -1,4 +1,4 @@
-from models.portfolio import Portfolio
+from backend.models.portfolio import Portfolio
 
 
 class PortfolioStore:

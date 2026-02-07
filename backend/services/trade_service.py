@@ -1,5 +1,5 @@
-from services.indian_market_service import IndianMarketService
-from models.trade import Trade
+from backend.services.indian_market_service import IndianMarketService
+from backend.models.trade import Trade
 
 
 class TradingService:

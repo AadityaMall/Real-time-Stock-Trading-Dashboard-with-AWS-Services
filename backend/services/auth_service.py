@@ -1,6 +1,6 @@
 from werkzeug.security import generate_password_hash, check_password_hash
-from models.user import User
-from services.token_service import TokenService
+from backend.models.user import User
+from backend.services.token_service import TokenService
 
 
 class AuthService:

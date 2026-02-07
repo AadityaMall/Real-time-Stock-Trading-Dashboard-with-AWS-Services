@@ -16,6 +16,7 @@ class Settings:
     JWT_EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", 6))
 
     # AWS
+    USE_AWS = os.getenv("USE_AWS", False)
     AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
 
     # DynamoDB Tables

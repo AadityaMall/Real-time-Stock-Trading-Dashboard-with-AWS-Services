@@ -1,7 +1,7 @@
 import datetime
 import jwt
 import os
-from conifg import settings
+from backend.config import settings
 
 class TokenService:
 

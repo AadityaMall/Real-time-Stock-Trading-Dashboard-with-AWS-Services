@@ -1,4 +1,4 @@
-from services.indian_market_service import IndianMarketService
+from backend.services.indian_market_service import IndianMarketService
 
 
 class PortfolioService:

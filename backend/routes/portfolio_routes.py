@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, g
-from middleware.auth_middleware import jwt_required
+from backend.middleware.auth_middleware import jwt_required
 
 portfolio_bp = Blueprint("portfolio", __name__)
 

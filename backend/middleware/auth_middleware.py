@@ -1,5 +1,5 @@
 from flask import request, jsonify, g
-from services.token_service import TokenService
+from backend.services.token_service import TokenService
 import functools
 
 def jwt_required(func):

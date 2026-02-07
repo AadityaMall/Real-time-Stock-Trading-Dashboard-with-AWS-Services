@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from services.indian_market_service import IndianMarketService
+from backend.services.indian_market_service import IndianMarketService
 
 market_bp = Blueprint("market", __name__)
 
