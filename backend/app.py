@@ -7,6 +7,7 @@ from backend.repositories.portfolio_store import PortfolioStore
 from backend.repositories.user_store_dynamo import UserStoreDynamo
 from backend.repositories.portfolio_store_dynamo import PortfolioStoreDynamo
 from backend.services.auth_service import AuthService
+from backend.services.notification_service import NotificationService
 from backend.services.trade_service import TradingService
 from backend.services.portfolio_service import PortfolioService
 from backend.routes.auth_routes import create_auth_routes
@@ -20,10 +21,12 @@ def create_app():
     app.secret_key = settings.SECRET_KEY
     # Initialize core components
     if settings.USE_AWS == 'True':
+        notification_service = NotificationService(settings.SNS_TOPIC_ARN)
         print("using dynamodb")
         user_store = UserStoreDynamo()
         portfolio_store = PortfolioStoreDynamo()
     else:
+        notification_service = NotificationService(None)
         print("using local dictionaries")
         user_store = UserStore()
         portfolio_store = PortfolioStore()

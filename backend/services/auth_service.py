@@ -1,11 +1,13 @@
 from werkzeug.security import generate_password_hash, check_password_hash
 from backend.models.user import User
 from backend.services.token_service import TokenService
+from backend.utils.notification_builder import build_user_registered_notification
 
 
 class AuthService:
-    def __init__(self, user_store):
+    def __init__(self, user_store, notification_service=None):
         self.user_store = user_store
+        self.notification_service = notification_service
 
     def register_user(self, username, password):
         if not username or not password:
@@ -20,6 +22,11 @@ class AuthService:
         self.user_store.add_user(user)
 
         token = TokenService.generate_token(user.username)
+
+        # ✅ SEND REGISTRATION NOTIFICATION
+        if self.notification_service:
+            message = build_user_registered_notification(username)
+            self.notification_service.publish(message)
 
         return user, token
 
