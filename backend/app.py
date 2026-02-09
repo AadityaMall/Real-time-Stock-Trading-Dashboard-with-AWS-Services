@@ -17,7 +17,7 @@ from backend.routes.portfolio_routes import create_portfolio_routes
 
 def create_app():
     app = Flask(__name__)
-    CORS(app, supports_credentials=True, origins=["http://localhost:3000"])
+    CORS(app, supports_credentials=True, origins=["http://localhost:3000","http://100.53.27.45:3000"])
     app.secret_key = settings.SECRET_KEY
     # Initialize core components
     if settings.USE_AWS == 'True':
