@@ -123,7 +123,7 @@ export const stockService = {
       if (!Array.isArray(data)) {
         throw new Error('Invalid response format');
       }
-      return data.map(transformStockData).filter(Boolean);
+      return data.map(transformStockData).filter((quote): quote is StockQuote => quote !== null);
     } catch (error) {
       throw error instanceof Error ? error : new Error('Failed to fetch stocks');
     }
@@ -146,6 +146,10 @@ export const stockService = {
 
       const data: BackendStockResponse = await response.json();
       const quote = transformStockData(data);
+
+      if (!quote) {
+        throw new Error('Invalid stock data received');
+      }
       
       return {
         symbol: quote.symbol,
@@ -187,7 +191,7 @@ export const stockService = {
       if (!Array.isArray(data)) {
         throw new Error('Invalid response format');
       }
-      return data.map(transformStockData).filter(Boolean);
+      return data.map(transformStockData).filter((quote): quote is StockQuote => quote !== null);
     } catch (error) {
       throw error instanceof Error ? error : new Error('Failed to fetch stock prices');
     }
